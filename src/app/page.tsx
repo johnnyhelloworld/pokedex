@@ -1,103 +1,255 @@
-import Image from "next/image";
+'use client';
+
+import { useState, useEffect } from 'react';
+import axios, { AxiosError } from 'axios';
+import InfiniteScroll from 'react-infinite-scroll-component';
+import { MagnifyingGlassIcon, FunnelIcon } from '@heroicons/react/24/outline';
+import { Pokemon, PokemonApiResponse, PokemonType } from '@/types/pokemon';
+
+const API_URL = 'https://nestjs-pokedex-api.vercel.app/pokemons';
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [pokemons, setPokemons] = useState<Pokemon[]>([]);
+  const [hasMore, setHasMore] = useState<boolean>(true);
+  const [offset, setOffset] = useState<number>(0); // Utilisation de offset pour le suivi de la page
+  const [limit, setLimit] = useState<number>(50); // Limite des Pokémon par page
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [allTypes, setAllTypes] = useState<PokemonType[]>([]);
+  const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
+  const [isFilterOpen, setIsFilterOpen] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  useEffect(() => {
+    const fetchTypes = async () => {
+      try {
+        const response = await axios.get<PokemonType[]>('https://nestjs-pokedex-api.vercel.app/types');
+        setAllTypes(response.data);
+      } catch (error) {
+        console.error('Error fetching types:', error);
+        setError('Failed to load Pokémon types');
+      }
+    };
+  
+    fetchTypes();
+  }, []);  
+
+  useEffect(() => {
+    fetchPokemons(0); // Charge les premiers Pokémon au montage
+  }, [searchTerm, selectedTypes, limit]); // Rafraîchit quand ces dépendances changent
+  
+  const fetchPokemons = async (currentOffset: number) => {
+    if (isLoading) return;
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const params = {
+        page: Math.floor(currentOffset / limit) + 1, // Calcule la page en fonction de l'offset
+        perPage: limit,
+        name: searchTerm || undefined,
+        types: selectedTypes.length > 0 ? selectedTypes.join(',') : undefined,
+      };
+  
+      const response = await axios.get<PokemonApiResponse>(API_URL, { params });
+      const newPokemons = response.data;
+  
+      setPokemons(prev => 
+        currentOffset === 0 
+          ? newPokemons 
+          : [...prev, ...newPokemons]
+      );
+      setOffset(currentOffset + newPokemons.length);
+      setHasMore(newPokemons.length === limit);
+    } catch (error) {
+      const axiosError = error as AxiosError;
+      console.error('Error fetching pokemons:', axiosError);
+      setError(axiosError.message || 'Failed to load Pokémon');
+      setHasMore(false);
+    } finally {
+      setIsLoading(false);
+    }
+  };  
+
+  const handleTypeToggle = (type: string) => {
+    setSelectedTypes((prev) =>
+      prev.includes(type)
+        ? prev.filter((t) => t !== type)
+        : [...prev, type]
+    );
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-100 p-4">
+      <div className="max-w-7xl mx-auto">
+        <h1 className="text-3xl font-bold text-center mb-8 text-gray-800">Pokédex</h1>
+        
+        {/* Search and Filter Controls */}
+        <div className="mb-6 bg-white p-4 rounded-lg shadow">
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="relative flex-grow">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
+              </div>
+              <input
+                type="text"
+                placeholder="Search Pokémon by name..."
+                className="pl-10 pr-4 py-2 w-full border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            
+            <div className="relative">
+              <button
+                onClick={() => setIsFilterOpen(!isFilterOpen)}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition"
+                aria-expanded={isFilterOpen}
+                aria-controls="filter-panel"
+              >
+                <FunnelIcon className="h-5 w-5" />
+                <span>Filters</span>
+              </button>
+              
+              {isFilterOpen && (
+                <div 
+                  id="filter-panel"
+                  className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-lg z-10 p-4"
+                >
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Items per page:
+                    </label>
+                    <select
+                      value={limit}
+                      onChange={(e) => setLimit(Number(e.target.value))}
+                      className="w-full border rounded-lg p-2"
+                      disabled={isLoading}
+                    >
+                      <option value={20}>20</option>
+                      <option value={50}>50</option>
+                      <option value={100}>100</option>
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Filter by type:
+                    </label>
+                    <div className="space-y-2 max-h-60 overflow-y-auto">
+                      {allTypes.map((type) => (
+                        <div key={type.id} className="flex items-center">
+                          <input
+                            type="checkbox"
+                            id={`type-${type.id}`}
+                            checked={selectedTypes.includes(type.id)}
+                            onChange={() => handleTypeToggle(type.id)}
+                            className="h-4 w-4 text-blue-600 rounded"
+                            disabled={isLoading}
+                          />
+                          <label htmlFor={`type-${type.id}`} className="ml-2 text-sm text-gray-700 capitalize">
+                            {type.name}
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+        
+        {/* Error message */}
+        {error && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+            {error}
+          </div>
+        )}
+        
+        {/* Pokémon Grid */}
+        <InfiniteScroll
+          dataLength={pokemons.length}
+          next={() => fetchPokemons(offset)} // Passe l'offset à chaque appel
+          hasMore={hasMore}
+          loader={
+            <div className="flex justify-center my-8">
+              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+            </div>
+          }
+          endMessage={
+            <p className="text-center text-gray-500 my-8">
+              {pokemons.length === 0 ? 'No Pokémon found' : 'You have seen all Pokémon!'}
+            </p>
+          }
+          className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6"
         >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+          {pokemons.map((pokemon) => (
+            <PokemonCard key={pokemon.id} pokemon={pokemon} />
+          ))}
+        </InfiniteScroll>
+      </div>
     </div>
   );
+}
+
+function PokemonCard({ pokemon }: { pokemon: Pokemon }) {
+  return (
+    <div className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition">
+      <div className="p-4">
+        <div className="flex justify-between items-start">
+          <span className="text-gray-500 text-sm">#{pokemon.id.toString().padStart(3, '0')}</span>
+        </div>
+        
+        <div className="flex justify-center my-4">
+          <img
+            src={pokemon.image}
+            alt={pokemon.name}
+            className="h-32 w-32 object-contain"
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = '/placeholder-pokemon.png';
+            }}
+          />
+        </div>
+        
+        <h2 className="text-xl font-semibold text-center capitalize">{pokemon.name}</h2>
+        
+        <div className="flex justify-center gap-2 mt-3">
+        {pokemon.types.map((typeObj) => (
+          <span
+            key={typeObj.name}
+            className={`px-2 py-1 text-xs rounded-full capitalize ${getTypeColorClass(typeObj.name)}`}
+          >
+            {typeObj.name}
+          </span>
+        ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function getTypeColorClass(type: string): string {
+  const typeColors: Record<string, string> = {
+    normal: 'bg-gray-400 text-white',
+    fire: 'bg-red-500 text-white',
+    water: 'bg-blue-500 text-white',
+    electric: 'bg-yellow-400 text-gray-800',
+    grass: 'bg-green-500 text-white',
+    ice: 'bg-blue-200 text-gray-800',
+    fighting: 'bg-red-700 text-white',
+    poison: 'bg-purple-500 text-white',
+    ground: 'bg-yellow-600 text-white',
+    flying: 'bg-indigo-300 text-gray-800',
+    psychic: 'bg-pink-500 text-white',
+    bug: 'bg-green-400 text-gray-800',
+    rock: 'bg-yellow-700 text-white',
+    ghost: 'bg-purple-700 text-white',
+    dragon: 'bg-indigo-600 text-white',
+    dark: 'bg-gray-800 text-white',
+    steel: 'bg-gray-500 text-white',
+    fairy: 'bg-pink-300 text-gray-800',
+  };
+  
+  return typeColors[type] || 'bg-gray-200 text-gray-800';
 }
