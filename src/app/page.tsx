@@ -5,14 +5,15 @@ import axios, { AxiosError } from 'axios';
 import InfiniteScroll from 'react-infinite-scroll-component';
 import { MagnifyingGlassIcon, FunnelIcon } from '@heroicons/react/24/outline';
 import { Pokemon, PokemonApiResponse, PokemonType } from '@/types/pokemon';
+import Link from 'next/link';
 
 const API_URL = 'https://nestjs-pokedex-api.vercel.app/pokemons';
 
 export default function Home() {
   const [pokemons, setPokemons] = useState<Pokemon[]>([]);
   const [hasMore, setHasMore] = useState<boolean>(true);
-  const [offset, setOffset] = useState<number>(0); // Utilisation de offset pour le suivi de la page
-  const [limit, setLimit] = useState<number>(50); // Limite des Pokémon par page
+  const [offset, setOffset] = useState<number>(0);
+  const [limit, setLimit] = useState<number>(50);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [allTypes, setAllTypes] = useState<PokemonType[]>([]);
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
@@ -35,8 +36,8 @@ export default function Home() {
   }, []);  
 
   useEffect(() => {
-    fetchPokemons(0); // Charge les premiers Pokémon au montage
-  }, [searchTerm, selectedTypes, limit]); // Rafraîchit quand ces dépendances changent
+    fetchPokemons(0);
+  }, [searchTerm, selectedTypes, limit]);
   
   const fetchPokemons = async (currentOffset: number) => {
     if (isLoading) return;
@@ -45,7 +46,7 @@ export default function Home() {
     
     try {
       const params = {
-        page: Math.floor(currentOffset / limit) + 1, // Calcule la page en fonction de l'offset
+        page: Math.floor(currentOffset / limit) + 1,
         perPage: limit,
         name: searchTerm || undefined,
         types: selectedTypes.length > 0 ? selectedTypes.join(',') : undefined,
@@ -84,7 +85,6 @@ export default function Home() {
       <div className="max-w-7xl mx-auto">
         <h1 className="text-3xl font-bold text-center mb-8 text-gray-800">Pokédex</h1>
         
-        {/* Search and Filter Controls */}
         <div className="mb-6 bg-white p-4 rounded-lg shadow">
           <div className="flex flex-col md:flex-row gap-4">
             <div className="relative flex-grow">
@@ -160,17 +160,15 @@ export default function Home() {
           </div>
         </div>
         
-        {/* Error message */}
         {error && (
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
             {error}
           </div>
         )}
         
-        {/* Pokémon Grid */}
         <InfiniteScroll
           dataLength={pokemons.length}
-          next={() => fetchPokemons(offset)} // Passe l'offset à chaque appel
+          next={() => fetchPokemons(offset)}
           hasMore={hasMore}
           loader={
             <div className="flex justify-center my-8">
@@ -185,7 +183,13 @@ export default function Home() {
           className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6"
         >
           {pokemons.map((pokemon) => (
-            <PokemonCard key={pokemon.id} pokemon={pokemon} />
+            <Link
+              key={pokemon.id}
+              href={`/pokemon/${pokemon.id}`}
+              className="block w-full text-black"
+            >
+              <PokemonCard pokemon={pokemon} />
+            </Link>
           ))}
         </InfiniteScroll>
       </div>
@@ -232,24 +236,30 @@ function PokemonCard({ pokemon }: { pokemon: Pokemon }) {
 function getTypeColorClass(type: string): string {
   const typeColors: Record<string, string> = {
     normal: 'bg-gray-400 text-white',
-    fire: 'bg-red-500 text-white',
-    water: 'bg-blue-500 text-white',
-    electric: 'bg-yellow-400 text-gray-800',
-    grass: 'bg-green-500 text-white',
-    ice: 'bg-blue-200 text-gray-800',
-    fighting: 'bg-red-700 text-white',
+    feu: 'bg-red-500 text-white',
+    eau: 'bg-blue-500 text-white',
+    électrik: 'bg-yellow-400 text-gray-800',
+    plante: 'bg-green-500 text-white',
+    glace: 'bg-blue-200 text-gray-800',
+    combat: 'bg-red-700 text-white',
     poison: 'bg-purple-500 text-white',
-    ground: 'bg-yellow-600 text-white',
-    flying: 'bg-indigo-300 text-gray-800',
-    psychic: 'bg-pink-500 text-white',
-    bug: 'bg-green-400 text-gray-800',
-    rock: 'bg-yellow-700 text-white',
-    ghost: 'bg-purple-700 text-white',
+    sol: 'bg-yellow-600 text-white',
+    vol: 'bg-indigo-300 text-gray-800',
+    psy: 'bg-pink-500 text-white',
+    insecte: 'bg-green-400 text-gray-800',
+    roche: 'bg-yellow-700 text-white',
+    spectre: 'bg-purple-700 text-white',
     dragon: 'bg-indigo-600 text-white',
     dark: 'bg-gray-800 text-white',
-    steel: 'bg-gray-500 text-white',
-    fairy: 'bg-pink-300 text-gray-800',
+    acier: 'bg-gray-500 text-white',
+    fée: 'bg-pink-300 text-gray-800',
   };
   
-  return typeColors[type] || 'bg-gray-200 text-gray-800';
+  const colorClass = typeColors[type.toLowerCase()];
+  if (!colorClass) {
+    console.error(`Type color not found for: ${type}`);
+    return 'bg-gray-200 text-gray-800';
+  }
+  
+  return colorClass;
 }
